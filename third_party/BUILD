@@ -61,3 +61,10 @@ java_library(
         "//third_party/jvm/javax/inject:javax_inject",
     ],
 )
+
+java_binary(
+    name = "jarjar_runner",
+    main_class = "org.pantsbuild.jarjar.Main",
+    visibility = ["//visibility:public"],
+    runtime_deps = ["//third_party/jvm/org/pantsbuild:jarjar"],
+)
