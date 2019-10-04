@@ -7,11 +7,15 @@ tasks:
       - "//:rules_kotlin_release"
     test_targets:
       - "//:all_tests"
+      - "//examples/dagger/..."
+      - "//examples/plugin/..."
   ubuntu1804:
-    test_targets:
-      - "//:all_tests"
     build_targets:
       - "//:rules_kotlin_release"
+    test_targets:
+      - "//:all_tests"
+      - "//examples/dagger/..."
+      - "//examples/plugin/..."
   rbe_ubuntu1604:
     test_targets:
       - "--"
@@ -20,6 +24,8 @@ tasks:
       # execution compatible, do not run them for now.
       - "//src/test/kotlin/io/bazel/kotlin:KotlinJvmFriendsVisibilityTest"
       - "//src/test/kotlin/io/bazel/kotlin:KotlinJvmBasicAssertionTest"
+      - "//examples/dagger/..."
+      - "//examples/plugin/..."
     test_flags:
       # Override the default worker strategy for remote builds (worker strategy
       # cannot be used with remote builds)
@@ -27,6 +33,8 @@ tasks:
   macos:
     test_targets:
       - "//:all_tests"
+      - "//examples/dagger/..."
+      - "//examples/plugin/..."
   example-android:
     name: "Example - Android"
     platform: ubuntu1804

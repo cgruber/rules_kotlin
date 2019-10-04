@@ -16,7 +16,7 @@ load(
     _kt_jvm_library = "kt_jvm_library",
 )
 
-def _kt_android_artifact(name, srcs = [], deps = [], plugins = [], **kwargs):
+def _kt_android_artifact(name, srcs = [], deps = [], plugins = [], friend = None, **kwargs):
     """Delegates Android related build attributes to the native rules but uses the Kotlin builder to compile Java and
     Kotlin srcs. Returns a sequence of labels that a wrapping macro should export.
     """
@@ -38,7 +38,10 @@ def _kt_android_artifact(name, srcs = [], deps = [], plugins = [], **kwargs):
         deps = base_deps + [base_name],
         plugins = plugins,
         testonly = kwargs.get("testonly", default = 0),
-        visibility = ["//visibility:private"],
+        friend = friend,
+        # must be public to be referenced as friends.
+        # TODO: rework this into a proper android provider giving rule, so we can avoid all this.
+        visibility = ["//visibility:public"],
     )
     return [base_name, kt_name]
 

@@ -164,26 +164,39 @@ def _compiler_toolchains(ctx):
 def _compiler_friends(ctx, friends):
     """Creates a struct of friends meta data"""
 
-    # TODO extract and move this into common. Need to make it generic first.
+    # Handle backward compatibility
+    friend = getattr(ctx.attr, "friend", None)
+    if bool(friend):
+        if bool(friends):
+            fail("Can only use friend or friends, but not both. Please only set `friend=`")
+        friends = [friend]
+
     if len(friends) == 0:
         return struct(
             targets = [],
             module_name = _utils.derive_module_name(ctx),
-            paths = [],
+            paths = depset(),
         )
     elif len(friends) == 1:
+        print("Found friend: %s" % friends[0])
         if friends[0][_KtJvmInfo] == None:
             fail("only kotlin dependencies can be friends")
         elif ctx.attr.module_name:
             fail("if friends has been set then module_name cannot be provided")
         else:
+            toolchains = _compiler_toolchains(ctx)
+            paths = depset(
+                direct = [x.class_jar.path for x in friends[0][JavaInfo].outputs.jars],
+                transitive = [friends[0][_KtJvmInfo].friend_paths],
+            )
+            print("Friend paths: %s" % paths)
             return struct(
                 targets = friends,
-                paths = friends[0][JavaInfo].compile_jars,
+                paths = paths,
                 module_name = friends[0][_KtJvmInfo].module_name,
             )
     else:
-        fail("only one friend is possible")
+        fail("Only one friend is presently supported.")
 
 def _compiler_deps(toolchains, friend, deps):
     """Encapsulates compiler dependency metadata."""
@@ -260,6 +273,7 @@ def kt_jvm_compile_action(ctx, rule_kind, output_jar):
         kt = _KtJvmInfo(
             srcs = ctx.files.srcs,
             module_name = friend.module_name,
+            friend_paths = friend.paths,
             language_version = toolchains.kt.api_version,
             # intellij aspect needs this.
             outputs = struct(

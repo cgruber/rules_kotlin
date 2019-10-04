@@ -13,32 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package coffee
+package time
 
-import dagger.Binds
-import dagger.Module
-import dagger.Provides
-import heating.ElectricHeater
-import heating.Heater
-import javax.inject.Singleton
-import pumping.PumpModule
-import time.Delayer
-
-@Module(includes = arrayOf(PumpModule::class, Bindings::class))
-internal class DripCoffeeModule {
-  @Provides
-  @Singleton
-  fun provideDelayer(): Delayer {
-    return object : Delayer {
-      override fun delay() {
-        Thread.sleep(1000)
-      }
-    }
-  }
-}
-
-@Module
-internal abstract class Bindings {
-  @Binds @Singleton
-  internal abstract fun bindHeater(heater: ElectricHeater): Heater
+/** Introduces a delay (which can be overridden in testing */
+interface Delayer {
+  fun delay(): Unit
 }

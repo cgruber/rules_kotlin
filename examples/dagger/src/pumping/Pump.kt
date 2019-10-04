@@ -13,13 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package coffee
+package pumping
 
-import dagger.Binds
-import dagger.Module
-
-@Module
-internal abstract class PumpModule {
-  @Binds
-  internal abstract fun providePump(pump: Thermosiphon): Pump
+internal interface Pump {
+  fun pump()
 }

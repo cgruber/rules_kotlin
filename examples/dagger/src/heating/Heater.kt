@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package coffee
+package heating
 
-internal interface Heater {
-  val isHot: Boolean
-  fun on()
-  fun off()
+abstract class Heater {
+    abstract val isHot: Boolean
+
+    internal abstract val isOn: Boolean
+
+    abstract fun on()
+    abstract fun off()
 }

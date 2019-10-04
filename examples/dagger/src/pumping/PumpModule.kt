@@ -13,17 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package coffee
+package pumping
 
-internal class ElectricHeater : Heater {
-  override var isHot: Boolean = false
+import dagger.Binds
+import dagger.Module
 
-  override fun on() {
-    println("~ ~ ~ heating ~ ~ ~")
-    this.isHot = true
-  }
-
-  override fun off() {
-    this.isHot = false
-  }
+@Module
+abstract class PumpModule {
+  @Binds
+  internal abstract fun providePump(pump: Thermosiphon): Pump
 }

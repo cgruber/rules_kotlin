@@ -163,6 +163,19 @@ _common_attr = utils.add_dicts(
             default = [],
             allow_files = False,
         ),
+        "friend": attr.label(
+            doc = """A single Kotlin dep which allows this code to access internal members of the given dependency.
+            Currently uses the output jar of the module -- i.e., exported deps won't be included.
+
+            DEPRECATED - PLEASE USE `friend=` instead.""",
+            providers = [JavaInfo, _KtJvmInfo],
+        ),
+        "friends": attr.label_list(
+            doc = """A single Kotlin dep which allows this code to access internal members of the given dependency.
+            Currently uses the output jar of the module -- i.e., exported deps won't be included.""",
+            default = [],
+            providers = [JavaInfo, _KtJvmInfo],
+        ),
         "resources": attr.label_list(
             doc = """A list of files that should be include in a Java jar.""",
             default = [],
@@ -269,12 +282,6 @@ kt_jvm_test = rule(
         "_bazel_test_runner": attr.label(
             default = Label("@bazel_tools//tools/jdk:TestRunner_deploy.jar"),
             allow_files = True,
-        ),
-        "friends": attr.label_list(
-            doc = """A single Kotlin dep which allows the test code access to internal members. Currently uses the output
-            jar of the module -- i.e., exported deps won't be included.""",
-            default = [],
-            providers = [JavaInfo, _KtJvmInfo],
         ),
         "test_class": attr.string(
             doc = "The Java class to be loaded by the test runner.",
