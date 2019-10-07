@@ -145,6 +145,15 @@ internal fun JvmCompilationTask.compileKotlin(
   printOnFail: Boolean = true
 ) =
   pluginArgs(this, commonArgs())
+    .also { args ->
+      if ( inputs.classpathList.any { classpath -> "kotlin-android-extensions-runtime" in classpath } ) {
+        inputs.classpathList.firstOrNull { classpath -> "android-extensions-compiler" in classpath }
+          ?.also { compiler ->
+            args.flag("-Xplugin", compiler)
+            args.flag("-P", "plugin:org.jetbrains.kotlin.android:experimental=true")
+          }
+      }
+    }
     .values(inputs.javaSourcesList)
     .values(inputs.kotlinSourcesList)
     .list().let { args ->
