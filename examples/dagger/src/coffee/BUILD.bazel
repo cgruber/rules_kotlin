@@ -40,13 +40,13 @@ kt_jvm_library(
         # Adding a file ending with .srcjar is how code generation patterns are implemented.
         ":tea_lib_src",
     ],
-    friend = "//examples/dagger/src/heating",
+    friends = ["//examples/dagger/src/heating"],
     visibility = ["//examples/dagger:__subpackages__"],
     deps = [
         "//examples/dagger/src/heating",
         "//examples/dagger/src/pumping",
         "//examples/dagger/src/time",
         "//third_party:dagger",
-        "//third_party/jvm/org/jetbrains/kotlinx:kotlinx_coroutines_core",
+        "@kotlin_rules_maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
     ],
 )

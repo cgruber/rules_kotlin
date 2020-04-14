@@ -16,5 +16,5 @@
 package pumping
 
 interface Pump {
-    fun pump()
+  fun pump()
 }

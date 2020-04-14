@@ -23,9 +23,9 @@ import kotlinx.coroutines.withContext
 import pumping.Pump
 
 class CoffeeMaker @Inject internal constructor(
-    // Create a possibly costly heater only when we use it.
-    private val heater: Lazy<Heater>,
-    private val pump: Pump
+  // Create a possibly costly heater only when we use it.
+  private val heater: Lazy<Heater>,
+  private val pump: Pump
 ) {
 
     suspend fun brew() {

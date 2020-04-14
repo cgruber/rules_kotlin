@@ -13,126 +13,24 @@
 # limitations under the License.
 workspace(name = "io_bazel_rules_kotlin")
 
-RULES_NODEJS_VERSION = "0.36.1"
-RULES_NODEJS_SHA = "3356c6b767403392bab018ce91625f6d15ff8f11c6d772dc84bc9cada01c669a"
+load("//kotlin:dependencies.bzl", "kt_download_local_dev_dependencies")
 
-BAZEL_TOOLCHAINS_VERSION = "be10bee3010494721f08a0fccd7f57411a1e773e"
-BAZEL_TOOLCHAINS_SHA = "5962fe677a43226c409316fcb321d668fc4b7fa97cb1f9ef45e7dc2676097b26"
+kt_download_local_dev_dependencies()
 
-SKYLIB_VERSION = "0.8.0"
-SKYLIB_SHA = "2ea8a5ed2b448baf4a6855d3ce049c4c452a6470b1efd1504fdb7c1c134d220a"
-
-PROTOBUF_GIT_COMMIT = "09745575a923640154bcf307fba8aedff47f240a"  # v3.8.0, as of 2019-05-28
-PROTOBUF_SHA = "76ee4ba47dec6146872b6cd051ae5bd12897ef0b1523d5aeb56d81a5a4ca885a"
-
-BAZEL_DEPS_VERSION = "0.1.0"
-BAZEL_DEPS_SHA = "05498224710808be9687f5b9a906d11dd29ad592020246d4cd1a26eeaed0735e"
-
-
-local_repository(
-    name = "node_example",
-    path = "examples/node",
-)
-
-load("//kotlin/internal/repositories:repositories.bzl", "github_archive")
-
-github_archive(
-    name = "com_google_protobuf",
-    commit = PROTOBUF_GIT_COMMIT,
-    repo = "google/protobuf",
-    sha256 = PROTOBUF_SHA,
-)
-
-load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
-
-protobuf_deps()
-
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_jar")
-
-http_archive(
-    name = "bazel_skylib",
-    urls = ["https://github.com/bazelbuild/bazel-skylib/archive/%s.tar.gz" % SKYLIB_VERSION],
-    strip_prefix = "bazel-skylib-%s" % SKYLIB_VERSION,
-    sha256 = SKYLIB_SHA,
-)
-
-http_jar(
-    name = "bazel_deps",
-    sha256 = BAZEL_DEPS_SHA,
-    url = "https://github.com/hsyed/bazel-deps/releases/download/v%s/parseproject_deploy.jar" % BAZEL_DEPS_VERSION,
-)
-
-http_archive(
-    name = "bazel_toolchains",
-    sha256 = BAZEL_TOOLCHAINS_SHA,
-    strip_prefix = "bazel-toolchains-%s" % BAZEL_TOOLCHAINS_VERSION,
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/archive/%s.tar.gz" % BAZEL_TOOLCHAINS_VERSION,
-        "https://github.com/bazelbuild/bazel-toolchains/archive/%s.tar.gz" % BAZEL_TOOLCHAINS_VERSION,
-    ],
-)
-
-load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
-
-# Creates toolchain configuration for remote execution with BuildKite CI
-# for rbe_ubuntu1604
-rbe_autoconfig(
-    name = "buildkite_config",
-)
-
-load(
-    "//third_party/jvm:workspace.bzl", "maven_dependencies",
-)
-
-maven_dependencies()
 load("//kotlin:kotlin.bzl", "kotlin_repositories", "kt_register_toolchains")
 
 kotlin_repositories()
 
 kt_register_toolchains()
 
-# The following are to support building and running nodejs examples from src/test
+# Creates toolchain configuration for remote execution with BuildKite CI
+# for rbe_ubuntu1604
+load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
 
-http_archive(
-    name = "build_bazel_rules_nodejs",
-    sha256 = RULES_NODEJS_SHA,
-    url = "https://github.com/bazelbuild/rules_nodejs/releases/download/{0}/rules_nodejs-{0}.tar.gz".format(RULES_NODEJS_VERSION),
+rbe_autoconfig(
+    name = "buildkite_config",
 )
 
-load("@build_bazel_rules_nodejs//:defs.bzl", "yarn_install")
+android_sdk_repository(name = "androidsdk")
 
-yarn_install(
-    name = "node_ws",
-    package_json = "@node_example//:package.json",
-    yarn_lock = "@node_example//:yarn.lock",
-)
-
-RULES_JVM_EXTERNAL_TAG = "2.7"
-
-RULES_JVM_EXTERNAL_SHA = "f04b1466a00a2845106801e0c5cec96841f49ea4e7d1df88dc8e4bf31523df74"
-
-http_archive(
-    name = "rules_jvm_external",
-    sha256 = RULES_JVM_EXTERNAL_SHA,
-    strip_prefix = "rules_jvm_external-%s" % RULES_JVM_EXTERNAL_TAG,
-    url = "https://github.com/bazelbuild/rules_jvm_external/archive/%s.zip" % RULES_JVM_EXTERNAL_TAG,
-)
-
-load("@rules_jvm_external//:defs.bzl", "maven_install")
-
-maven_install(
-    artifacts = [
-        "org.jetbrains.kotlinx:atomicfu-js:0.13.1",
-        "org.jetbrains.kotlinx:kotlinx-coroutines-core-js:1.3.2",
-    ],
-    repositories = [
-        "https://maven-central.storage.googleapis.com/repos/central/data/",
-        "https://repo1.maven.org/maven2",
-    ],
-)
-
-http_archive(
-    name = "rules_pkg",
-    url = "https://github.com/bazelbuild/rules_pkg/releases/download/0.2.4/rules_pkg-0.2.4.tar.gz",
-    sha256 = "4ba8f4ab0ff85f2484287ab06c0d871dcb31cc54d439457d28fd4ae14b18450a",
-)
+android_ndk_repository(name = "androidndk")

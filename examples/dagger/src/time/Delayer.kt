@@ -17,5 +17,5 @@ package time
 
 /** Introduces a delay (which can be overridden in testing */
 interface Delayer {
-    fun delay(): Unit
+  fun delay(): Unit
 }

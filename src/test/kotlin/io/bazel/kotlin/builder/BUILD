@@ -11,18 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = ["//src:__subpackages__"])
 
 load("@rules_java//java:defs.bzl", "java_library")
-load("//src/test/kotlin/io/bazel/kotlin:defs.bzl", "kt_rules_test")
 
 _COMMON_DEPS = [
     "//src/main/kotlin/io/bazel/kotlin/builder",
-    "//src/main/protobuf:kotlin_model",
-    "//third_party/jvm/com/google/truth",
-    "//third_party/jvm/junit",
-    "//third_party/jvm/com/google/guava",
-    "//third_party/jvm/com/google/code/findbugs:jsr305",
+    "//src/main/kotlin/io/bazel/kotlin/builder/toolchain",
+    "//src/main/kotlin/io/bazel/kotlin/builder/utils:utils",
+    "//src/main/protobuf:kotlin_model_java_proto",
+    "//src/main/protobuf:deps_java_proto",
+    "@kotlin_rules_maven//:com_google_truth_truth",
+    "@kotlin_rules_maven//:junit_junit",
+    "@kotlin_rules_maven//:com_google_guava_guava",
+    "@kotlin_rules_maven//:com_google_code_findbugs_jsr305",
 ]
 
 java_library(
@@ -32,16 +34,16 @@ java_library(
         "Deps.java",
         "DirectoryType.java",
         "KotlinAbstractTestBuilder.java",
+        "KotlinBuilderTestComponent.java",
         "KotlinJsTestBuilder.java",
         "KotlinJvmTestBuilder.java",
     ],
     data = [
-        "//src/main/kotlin:compiler_lib",
+        "//src/main/kotlin/io/bazel/kotlin/compiler",
         "@com_github_jetbrains_kotlin//:home",
     ],
     exports = _COMMON_DEPS + [
-        "@io_bazel_rules_kotlin_com_google_protobuf_protobuf_java//jar",
-        "//src/main/protobuf:deps",
+        "@kotlin_rules_maven//:com_google_protobuf_protobuf_java",
     ],
     runtime_deps = [
         "@com_github_jetbrains_kotlin//:kotlin-reflect",
@@ -49,46 +51,16 @@ java_library(
     ],
     deps = _COMMON_DEPS + [
         "//third_party:autovalue",
+        "//third_party:dagger",
+        "//src/main/kotlin/io/bazel/kotlin/builder/tasks",
     ],
-)
-
-kt_rules_test(
-    name = "SourceJarCreatorTest",
-    srcs = ["utils/jars/SourceJarCreatorTest.java"],
-)
-
-kt_rules_test(
-    name = "JdepsParserTest",
-    srcs = ["tasks/jvm/JdepsParserTest.java"],
-)
-
-kt_rules_test(
-    name = "KotlinBuilderJvmBasicTest",
-    srcs = ["tasks/jvm/KotlinBuilderJvmBasicTest.java"],
-)
-
-kt_rules_test(
-    name = "KotlinBuilderJvmKaptTest",
-    srcs = ["tasks/jvm/KotlinBuilderJvmKaptTest.java"],
-    data = [
-        "//third_party/jvm/com/google/auto/value:auto_value",
-        "//third_party/jvm/com/google/auto/value:auto_value_annotations",
-    ],
-)
-
-kt_rules_test(
-    name = "KotlinBuilderJsTest",
-    srcs = ["tasks/js/KotlinBuilderJsTest.java"],
 )
 
 test_suite(
     name = "builder_tests",
     tests = [
-        ":JdepsParserTest",
-        ":KotlinBuilderJsTest",
-        ":KotlinBuilderJvmBasicTest",
-        ":KotlinBuilderJvmKaptTest",
-        ":SourceJarCreatorTest",
+        "//src/test/kotlin/io/bazel/kotlin/builder/tasks",
+        "//src/test/kotlin/io/bazel/kotlin/builder/utils",
     ],
     visibility = ["//visibility:public"],
 )
