@@ -24,21 +24,21 @@ import javax.inject.Singleton
 import pumping.PumpModule
 import time.Delayer
 
-@Module(includes = arrayOf(PumpModule::class, Bindings::class))
+@Module(includes = [ PumpModule::class, Bindings::class ])
 internal class DripCoffeeModule {
-    @Provides
-    @Singleton
-    fun provideDelayer(): Delayer {
-        return object : Delayer {
-            override fun delay() {
-                Thread.sleep(1000)
-            }
-        }
+  @Provides
+  @Singleton
+  fun provideDelayer(): Delayer {
+    return object : Delayer {
+      override fun delay() {
+        Thread.sleep(1000)
+      }
     }
+  }
 }
 
 @Module
 internal abstract class Bindings {
-    @Binds @Singleton
-    internal abstract fun bindHeater(heater: ElectricHeater): Heater
+  @Binds @Singleton
+  internal abstract fun bindHeater(heater: ElectricHeater): Heater
 }

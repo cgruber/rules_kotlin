@@ -12,41 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 load("@rules_java//java:defs.bzl", "java_library")
-load("//src/main/kotlin:bootstrap.bzl", "kt_bootstrap_library")
-
-kt_bootstrap_library(
-    name = "builder_kt",
-    srcs = glob([
-        "toolchain/*.kt",
-        "tasks/**/*.kt",
-        "utils/**/*.kt",
-    ]),
-    deps = [
-        "//src/main/protobuf:deps",
-        "//src/main/protobuf:kotlin_model",
-        "//src/main/protobuf:worker",
-        "@com_github_jetbrains_kotlin//:kotlin-preloader",
-        "@io_bazel_rules_kotlin_com_google_protobuf_protobuf_java//jar",
-        "@io_bazel_rules_kotlin_com_google_protobuf_protobuf_java_util//jar",
-        "@io_bazel_rules_kotlin_javax_inject_javax_inject//jar",
-    ],
-)
 
 java_library(
     name = "builder",
     srcs = glob(["*.java"]),
     visibility = ["//src:__subpackages__"],
-    exports = [":builder_kt"],
     runtime_deps = [
         "@com_github_jetbrains_kotlin//:kotlin-stdlib-jdk7",
         "@com_github_jetbrains_kotlin//:kotlin-stdlib-jdk8",
     ],
     deps = [
-        ":builder_kt",
-        "//src/main/protobuf:kotlin_model",
+        "//src/main/kotlin/io/bazel/kotlin/builder/tasks",
+        "//src/main/kotlin/io/bazel/kotlin/builder/toolchain",
+        "//src/main/kotlin/io/bazel/kotlin/builder/utils",
+        "//src/main/protobuf:deps_java_proto",
+        "//src/main/protobuf:kotlin_model_java_proto",
+        "//src/main/protobuf:worker_protocol_java_proto",
         "//third_party:dagger",
         "@com_github_jetbrains_kotlin//:annotations",
         "@com_github_jetbrains_kotlin//:kotlin-stdlib",
-        "@io_bazel_rules_kotlin_com_google_protobuf_protobuf_java//jar",
+        "@kotlin_rules_maven//:javax_inject_javax_inject",
     ],
 )

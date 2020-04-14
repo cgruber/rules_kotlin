@@ -19,6 +19,12 @@ load(
 load(
     "//kotlin/internal/jvm:plugins.bzl",
     _merge_plugin_infos = "merge_plugin_infos",
+    _plugin_mappers = "mappers",
+)
+load(
+    "//kotlin/internal:compiler_plugins.bzl",
+    _plugins_to_classpaths = "plugins_to_classpaths",
+    _plugins_to_options = "plugins_to_options",
 )
 load(
     "//kotlin/internal/utils:utils.bzl",
@@ -27,7 +33,7 @@ load(
 
 # INTERNAL ACTIONS #####################################################################################################
 def _fold_jars_action(ctx, rule_kind, output_jar, input_jars):
-    """Set up an action to Fold the input jars into a normalized ouput jar."""
+    """Set up an action to Fold the input jars into a normalized output jar."""
     args = ctx.actions.args()
     args.add_all([
         "--normalize",
@@ -52,6 +58,7 @@ def _fold_jars_action(ctx, rule_kind, output_jar, input_jars):
 _CONVENTIONAL_RESOURCE_PATHS = [
     "src/main/resources",
     "src/test/resources",
+    "kotlin",
 ]
 
 def _adjust_resources_path_by_strip_prefix(path, resource_strip_prefix):
@@ -112,12 +119,8 @@ def _build_resourcejar_action(ctx):
     )
     return resources_jar_output
 
-# MAIN ACTIONS #########################################################################################################
-def _declare_output_directory(ctx, aspect, dir_name):
-    return ctx.actions.declare_directory("_kotlinc/%s_%s/%s_%s" % (ctx.label.name, aspect, ctx.label.name, dir_name))
-
-def _partition_srcs(srcs):
-    """Partition sources for the jvm aspect."""
+def _partitioned_srcs(srcs):
+    """Creates a struct of srcs sorted by extension. Fails if there are no sources."""
     kt_srcs = []
     java_srcs = []
     src_jars = []
@@ -130,27 +133,90 @@ def _partition_srcs(srcs):
         elif f.path.endswith(".srcjar"):
             src_jars.append(f)
 
+    if not kt_srcs and not java_srcs and not src_jars:
+        fail("no sources provided")
+
     return struct(
-        kt = depset(kt_srcs),
-        java = depset(java_srcs),
-        all_srcs = depset(kt_srcs + java_srcs),
-        src_jars = depset(src_jars),
+        kt = kt_srcs,
+        java = java_srcs,
+        all_srcs = kt_srcs + java_srcs,
+        src_jars = src_jars,
     )
 
-def _handle_legacy_friends(ctx):
-    # TODO extract and move this into common. Need to make it generic first.
-    friend = getattr(ctx.attr, "friend", None)
+def _output_dir_path(ctx, aspect, dir_name):
+    return "_kotlinc/%s_%s/%s_%s" % (ctx.label.name, aspect, ctx.label.name, dir_name)
 
-    # Reduce to a single friend if more than one is set (old API)
-    friends = getattr(ctx.attr, "friends", [])
-    if len(friends) == 1:
-        if bool(friend):
-            fail("Can only use friend or friends, but not both. Please only set `friend=`")
-        print("`friends=` is deprecated, please use `friend=` with a single target")
-        friend = friends[0]
-    if len(friends) > 1:
+def _compiler_directories(ctx):
+    """Creates a dict of the necessary compiler directories for generating compile actions"""
+    return dict(
+        classdir = _output_dir_path(ctx, "jvm", "classes"),
+        kotlin_generated_classdir = _output_dir_path(ctx, "jvm", "generated_classes"),
+        sourcegendir = _output_dir_path(ctx, "jvm", "sourcegenfiles"),
+        tempdir = _output_dir_path(ctx, "jvm", "temp"),
+    )
+
+def _compiler_toolchains(ctx):
+    """Creates a struct of the relevant compilation toolchains"""
+    return struct(
+        kt = ctx.toolchains[_TOOLCHAIN_TYPE],
+    )
+
+def _compiler_friends(ctx, friends):
+    """Creates a struct of friends meta data"""
+
+    # Handle single friend attribute (now deprecated)
+    if bool(ctx.attr.friend):
+        print("Kotlin attribute \"friend=\" is deprecated. Prefer \"friends=\"")
+        if bool(friends):
+            fail("Do not specify both friend= and friends= attributes. Prefer friends=")
+        friends = [ctx.attr.friend]
+
+    if len(friends) == 0:
+        return struct(
+            targets = [],
+            module_name = _utils.derive_module_name(ctx),
+            paths = depset(),
+        )
+    elif len(friends) == 1:
+        if friends[0][_KtJvmInfo] == None:
+            fail("only kotlin dependencies can be friends")
+        elif ctx.attr.module_name:
+            fail("if friends has been set then module_name cannot be provided")
+        else:
+            return struct(
+                targets = friends,
+                paths = depset(
+                    direct = [x.class_jar.path for x in friends[0][JavaInfo].outputs.jars],
+                    transitive = [friends[0][_KtJvmInfo].friend_paths],
+                ),
+                module_name = friends[0][_KtJvmInfo].module_name,
+            )
+    else:
         fail("only one friend is possible")
-    return friend
+
+def _compiler_deps(toolchains, friend, deps):
+    """Encapsulates compiler dependency metadata."""
+    dep_infos = [d[JavaInfo] for d in friend.targets + deps] + [toolchains.kt.jvm_stdlibs]
+    return struct(
+        deps = dep_infos,
+        compile_jars = depset(
+            transitive = [
+                d.compile_jars
+                for d in dep_infos
+            ] + [
+                d.transitive_compile_time_jars
+                for d in dep_infos
+            ],
+        ),
+    )
+
+def _java_info_to_compile_jars(target):
+    i = target[JavaInfo]
+    if i == None:
+        return None
+    return i.compile_jars
+
+# MAIN ACTIONS #########################################################################################################
 
 def kt_jvm_compile_action(ctx, rule_kind, output_jar):
     """This macro sets up a compile action for a Kotlin jar.
@@ -162,90 +228,28 @@ def kt_jvm_compile_action(ctx, rule_kind, output_jar):
         A struct containing the providers JavaInfo (`java`) and `kt` (KtJvmInfo). This struct is not intended to be
         used as a legacy provider -- rather the caller should transform the result.
     """
-    toolchain = ctx.toolchains[_TOOLCHAIN_TYPE]
+    toolchains = _compiler_toolchains(ctx)
+    dirs = _compiler_directories(ctx)
+    srcs = _partitioned_srcs(ctx.files.srcs)
+    friend = _compiler_friends(ctx, friends = getattr(ctx.attr, "friends", []))
+    compile_deps = _compiler_deps(toolchains, friend, deps = ctx.attr.deps + ctx.attr.plugins)
+    annotation_processors = _plugin_mappers.targets_to_annotation_processors(ctx.attr.plugins + ctx.attr.deps)
+    plugins = ctx.attr.plugins
 
-    srcs = _partition_srcs(ctx.files.srcs)
-    if not srcs.kt and not srcs.java and not srcs.src_jars:
-        fail("no sources provided")
-
-    friend = _handle_legacy_friends(ctx)
-    deps = [d[JavaInfo] for d in ctx.attr.deps] + [toolchain.jvm_stdlibs] + ([friend[JavaInfo]] if bool(friend) else [])
-    compile_jars = java_common.merge(deps).transitive_compile_time_jars
-    if bool(friend):
-        if friend[_KtJvmInfo] == None:
-            fail("only kotlin dependencies can be friends")
-        elif ctx.attr.module_name:
-            fail("if friends has been set then module_name cannot be provided")
-        else:
-            friend_paths = depset(
-                direct = [x.class_jar.path for x in friend[JavaInfo].outputs.jars],
-                transitive = [friend[_KtJvmInfo].friend_paths],
-            )
-            module_name = friend[_KtJvmInfo].module_name
-    else:
-        module_name = _utils.derive_module_name(ctx)
-        friend_paths = depset()
-
-    classes_directory = _declare_output_directory(ctx, "jvm", "classes")
-    generated_classes_directory = _declare_output_directory(ctx, "jvm", "generated_classes")
-    sourcegen_directory = _declare_output_directory(ctx, "jvm", "sourcegenfiles")
-    temp_directory = _declare_output_directory(ctx, "jvm", "temp")
-
-    args = _utils.init_args(ctx, rule_kind, module_name)
-
-    args.add("--classdir", classes_directory.path)
-    args.add("--sourcegendir", sourcegen_directory.path)
-    args.add("--tempdir", temp_directory.path)
-    args.add("--kotlin_generated_classdir", generated_classes_directory.path)
-
-    args.add("--output", output_jar)
-    args.add("--kotlin_output_jdeps", ctx.outputs.jdeps)
-    args.add("--kotlin_output_srcjar", ctx.outputs.srcjar)
-    args.add("--kotlin_friend_paths", "\n".join([d for d in friend_paths.to_list()]))
-
-    args.add_all("--classpath", compile_jars)
-    args.add_all("--sources", srcs.all_srcs, omit_if_empty = True)
-    args.add_all("--source_jars", srcs.src_jars, omit_if_empty = True)
-
-    # Collect and prepare plugin descriptor for the worker.
-    plugin_info = _merge_plugin_infos(ctx.attr.plugins + ctx.attr.deps)
-    if len(plugin_info.annotation_processors) > 0:
-        processors = []
-        processorpath = []
-        for p in plugin_info.annotation_processors:
-            processors += [p.processor_class]
-            processorpath += p.classpath
-        args.add_all("--processors", processors)
-        args.add_all("--processorpath", processorpath)
-
-    progress_message = "Compiling Kotlin to JVM %s { kt: %d, java: %d, srcjars: %d }" % (
-        ctx.label,
-        len(srcs.kt.to_list()),
-        len(srcs.java.to_list()),
-        len(srcs.src_jars.to_list()),
-    )
-
-    tools, _, input_manifests = ctx.resolve_command(tools = [toolchain.kotlinbuilder, toolchain.kotlin_home])
-    ctx.actions.run(
-        mnemonic = "KotlinCompile",
-        inputs = depset(ctx.files.srcs, transitive = [compile_jars]),
-        tools = tools,
-        outputs = [
-            output_jar,
-            ctx.outputs.jdeps,
-            ctx.outputs.srcjar,
-            sourcegen_directory,
-            classes_directory,
-            temp_directory,
-            generated_classes_directory,
-        ],
-        executable = toolchain.kotlinbuilder.files_to_run.executable,
-        execution_requirements = {"supports-workers": "1"},
-        arguments = [args],
-        progress_message = progress_message,
-        input_manifests = input_manifests,
-        env = {
-            "LC_CTYPE": "en_US.UTF-8",  # For Java source files
+    _run_kt_builder_action(
+        ctx = ctx,
+        rule_kind = rule_kind,
+        toolchains = toolchains,
+        dirs = dirs,
+        srcs = srcs,
+        friend = friend,
+        compile_deps = compile_deps,
+        annotation_processors = annotation_processors,
+        plugins = plugins,
+        outputs = {
+            "output": output_jar,
+            "kotlin_output_jdeps": ctx.outputs.jdeps,
+            "kotlin_output_srcjar": ctx.outputs.srcjar,
         },
     )
 
@@ -255,17 +259,17 @@ def kt_jvm_compile_action(ctx, rule_kind, output_jar):
             compile_jar = ctx.outputs.jar,
             source_jar = ctx.outputs.srcjar,
             #  jdeps = ctx.outputs.jdeps,
-            deps = deps,
+            deps = compile_deps.deps,
             runtime_deps = [d[JavaInfo] for d in ctx.attr.runtime_deps],
             exports = [d[JavaInfo] for d in getattr(ctx.attr, "exports", [])],
             neverlink = getattr(ctx.attr, "neverlink", False),
         ),
         kt = _KtJvmInfo(
             srcs = ctx.files.srcs,
-            module_name = module_name,
-            friend_paths = friend_paths,
-            language_version = toolchain.api_version,
-            # intelij aspect needs this.
+            module_name = friend.module_name,
+            friend_paths = friend.paths,
+            language_version = toolchains.kt.api_version,
+            # intellij aspect needs this.
             outputs = struct(
                 jdeps = ctx.outputs.jdeps,
                 jars = [struct(
@@ -275,6 +279,73 @@ def kt_jvm_compile_action(ctx, rule_kind, output_jar):
                 )],
             ),
         ),
+    )
+
+def _run_kt_builder_action(ctx, rule_kind, toolchains, dirs, srcs, friend, compile_deps, annotation_processors, plugins, outputs):
+    """Creates a KotlinBuilder action invocation."""
+    args = _utils.init_args(ctx, rule_kind, friend.module_name)
+
+    for f, path in dirs.items() + outputs.items():
+        args.add("--" + f, path)
+
+    args.add_all("--classpath", compile_deps.compile_jars)
+    args.add_all("--sources", srcs.all_srcs, omit_if_empty = True)
+    args.add_all("--source_jars", srcs.src_jars, omit_if_empty = True)
+
+    args.add_joined("--kotlin_friend_paths", friend.paths, join_with = "\n")
+
+    # Collect and prepare plugin descriptor for the worker.
+    args.add_all(
+        "--processors",
+        annotation_processors,
+        map_each = _plugin_mappers.kt_plugin_to_processor,
+        omit_if_empty = True,
+    )
+    args.add_all(
+        "--processorpath",
+        annotation_processors,
+        map_each = _plugin_mappers.kt_plugin_to_processorpath,
+        omit_if_empty = True,
+    )
+
+    args.add_all(
+        "--pluginpath",
+        _plugins_to_classpaths(plugins),
+        omit_if_empty = True,
+    )
+    args.add_all(
+        "--plugin_options",
+        _plugins_to_options(plugins),
+        omit_if_empty = True,
+    )
+
+    progress_message = "Compiling Kotlin to JVM %s { kt: %d, java: %d, srcjars: %d }" % (
+        ctx.label,
+        len(srcs.kt),
+        len(srcs.java),
+        len(srcs.src_jars),
+    )
+
+    tools, input_manifests = ctx.resolve_tools(
+        tools = [
+            toolchains.kt.kotlinbuilder,
+            toolchains.kt.kotlin_home,
+        ],
+    )
+
+    ctx.actions.run(
+        mnemonic = "KotlinCompile",
+        inputs = depset(ctx.files.srcs, transitive = [compile_deps.compile_jars]),
+        tools = tools,
+        input_manifests = input_manifests,
+        outputs = [f for f in outputs.values()],
+        executable = toolchains.kt.kotlinbuilder.files_to_run.executable,
+        execution_requirements = {"supports-workers": "1"},
+        arguments = [args],
+        progress_message = progress_message,
+        env = {
+            "LC_CTYPE": "en_US.UTF-8",  # For Java source files
+        },
     )
 
 def kt_jvm_produce_jar_actions(ctx, rule_kind):

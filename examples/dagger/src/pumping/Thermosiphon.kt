@@ -20,13 +20,13 @@ import javax.inject.Inject
 import time.Delayer
 
 internal class Thermosiphon
-    @Inject constructor(private val heater: Heater, private val delayer: Delayer) :
-    Pump {
+  @Inject constructor(private val heater: Heater, private val delayer: Delayer) :
+  Pump {
 
-    override fun pump() {
-        if (heater.isHot) {
-            println("=> => pumping => =>")
-            delayer.delay()
-        }
+  override fun pump() {
+    if (heater.isHot) {
+      println("=> => pumping => =>")
+      delayer.delay()
     }
+  }
 }

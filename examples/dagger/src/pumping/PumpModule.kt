@@ -20,6 +20,6 @@ import dagger.Module
 
 @Module
 abstract class PumpModule {
-    @Binds
-    internal abstract fun providePump(pump: Thermosiphon): Pump
+  @Binds
+  internal abstract fun providePump(pump: Thermosiphon): Pump
 }

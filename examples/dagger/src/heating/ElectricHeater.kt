@@ -19,22 +19,22 @@ import javax.inject.Inject
 import time.Delayer
 
 class ElectricHeater
-    @Inject constructor(private val delayer: Delayer) : Heater() {
+  @Inject constructor(private val delayer: Delayer) : Heater() {
 
-    override var isHot: Boolean = false
-    override var isOn: Boolean = false
+  override var isHot: Boolean = false
+  override var isOn: Boolean = false
 
-    override fun on() {
-        isOn = true
-        println("~ ~ ~ heating ~ ~ ~")
-        delayer.delay()
-        this.isHot = true
-    }
+  override fun on() {
+    isOn = true
+    println("~ ~ ~ heating ~ ~ ~")
+    delayer.delay()
+    this.isHot = true
+  }
 
-    override fun off() {
-        this.isOn = false
-        println("~ ~ ~ cooling ~ ~ ~")
-        delayer.delay()
-        this.isHot = false
-    }
+  override fun off() {
+    this.isOn = false
+    println("~ ~ ~ cooling ~ ~ ~")
+    delayer.delay()
+    this.isHot = false
+  }
 }
