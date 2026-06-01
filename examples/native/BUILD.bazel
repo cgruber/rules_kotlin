@@ -1,0 +1,115 @@
+load("@rules_kotlin//kotlin:native.bzl", "kt_native_binary", "kt_native_library")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Build for the host (no flag) or cross-compile with e.g.
+#   bazel build //:app --platforms=//:linux_x64
+platform(
+    name = "macos_arm64",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+platform(
+    name = "linux_x64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+kt_native_library(
+    name = "greeter",
+    srcs = ["Greeter.kt"],
+    module_name = "greeter",
+)
+
+kt_native_library(
+    name = "app",
+    srcs = ["App.kt"],
+    module_name = "app",
+    deps = [":greeter"],
+)
+
+# Multi-source-file library (cross-file references within one module).
+kt_native_library(
+    name = "util",
+    srcs = [
+        "Util1.kt",
+        "Util2.kt",
+    ],
+    module_name = "util",
+)
+
+# 3-level transitive chain: top -> app -> greeter. `top` uses only app's API, but konanc
+# must still resolve greeter.klib transitively — exercises the transitive -l closure.
+kt_native_library(
+    name = "top",
+    srcs = ["Top.kt"],
+    module_name = "top",
+    deps = [":app"],
+)
+
+# --- validation: assert each klib is well-formed with the expected manifest ---
+# (runs in the host config, so the expected target is macos_arm64)
+
+sh_test(
+    name = "greeter_klib_test",
+    srcs = ["validate_klib.sh"],
+    args = [
+        "$(rootpath :greeter)",
+        "macos_arm64",
+    ],
+    data = [":greeter"],
+)
+
+sh_test(
+    name = "app_klib_test",
+    srcs = ["validate_klib.sh"],
+    args = [
+        "$(rootpath :app)",
+        "macos_arm64",
+        "greeter",
+    ],
+    data = [":app"],
+)
+
+sh_test(
+    name = "top_klib_test",
+    srcs = ["validate_klib.sh"],
+    args = [
+        "$(rootpath :top)",
+        "macos_arm64",
+        "app",
+    ],
+    data = [":top"],
+)
+
+sh_test(
+    name = "util_klib_test",
+    srcs = ["validate_klib.sh"],
+    args = [
+        "$(rootpath :util)",
+        "macos_arm64",
+    ],
+    data = [":util"],
+)
+
+# --- e2e: link a real native executable and actually run it (host target) ---
+# NOTE: the first build downloads the konan dependency bundle (~650 MB) into ~/.konan.
+
+kt_native_binary(
+    name = "hello",
+    srcs = ["Hello.kt"],
+    module_name = "hello",
+)
+
+sh_test(
+    name = "hello_e2e_test",
+    srcs = ["run_hello.sh"],
+    args = ["$(rootpath :hello)"],
+    data = [":hello"],
+)

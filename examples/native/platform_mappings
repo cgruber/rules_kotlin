@@ -1,0 +1,14 @@
+# Give each konan target a distinct output root (otherwise both land under
+# darwin_arm64-fastbuild/ and clobber each other). Maps platform <-> legacy --cpu, which
+# is what the output directory is named after.
+platforms:
+  //:macos_arm64
+    --cpu=darwin_arm64
+  //:linux_x64
+    --cpu=k8
+
+flags:
+  --cpu=darwin_arm64
+    //:macos_arm64
+  --cpu=k8
+    //:linux_x64

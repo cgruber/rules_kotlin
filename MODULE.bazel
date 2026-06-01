@@ -59,6 +59,21 @@ register_toolchains("//src/main/starlark/core/compile/cli")
 
 register_toolchains("//kotlin/internal:default_toolchain")
 
+# Kotlin/Native (M1: source-only klib compilation). The distribution repo is fetched
+# lazily — only when a native target is actually built — so JVM-only consumers are
+# unaffected.
+kotlin_native = use_extension("//src/main/starlark/core/repositories:native.bzl", "kotlin_native")
+use_repo(
+    kotlin_native,
+    "com_github_jetbrains_kotlin_native",
+    "com_github_jetbrains_kotlin_native_deps",
+)
+
+register_toolchains(
+    "//kotlin/internal/native:linux_x64",
+    "//kotlin/internal/native:macos_arm64",
+)
+
 # Development dependencies
 # TODO(bencodes) A bunch of these dependencies need to be marked as dev_dependencies but before we can do that
 # we need to sort out a few cases around how these rules are consumed in various ways.

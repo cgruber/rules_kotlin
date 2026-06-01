@@ -1,0 +1,67 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("//kotlin/internal/native:toolchains.bzl", "define_kt_native_toolchain")
+
+toolchain_type(
+    name = "kt_native_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# Wraps a konanc invocation: creates the action-local scratch/cache dirs, then execs
+# konanc. Used as the executable for KotlinNativeKlibCompile actions.
+sh_binary(
+    name = "konanc_launcher",
+    srcs = ["konanc_launcher.sh"],
+    visibility = ["//visibility:public"],
+)
+
+# Like konanc_launcher, but also stages the pre-fetched konan dependency bundle into a
+# writable KONAN_DATA_DIR. Used by kt_native_binary (binary linking).
+sh_binary(
+    name = "konanc_link_launcher",
+    srcs = ["konanc_link_launcher.sh"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(
+    glob(["*.bzl"]),
+    visibility = ["//visibility:public"],
+)
+
+# Native toolchains, one per (exec host, konan target). A host distribution can
+# cross-compile klibs for every target, so all toolchains for a given host share the
+# same konan_home and differ only in konan_target + target_compatible_with.
+#
+# M1: macOS arm64 is the only verified host (exec_compatible_with reflects it). Other
+# hosts are future work (see native_compiler.bzl KOTLIN_NATIVE_PREBUILT).
+
+define_kt_native_toolchain(
+    name = "macos_arm64",
+    konan_deps = "@com_github_jetbrains_kotlin_native_deps//:deps",
+    konan_home = "@com_github_jetbrains_kotlin_native//:home",
+    konan_target = "macos_arm64",
+    konanc = "@com_github_jetbrains_kotlin_native//:bin/konanc",
+    exec_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+define_kt_native_toolchain(
+    name = "linux_x64",
+    konan_deps = "@com_github_jetbrains_kotlin_native_deps//:deps",
+    konan_home = "@com_github_jetbrains_kotlin_native//:home",
+    konan_target = "linux_x64",
+    konanc = "@com_github_jetbrains_kotlin_native//:bin/konanc",
+    exec_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
